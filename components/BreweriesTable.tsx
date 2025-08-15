@@ -4,8 +4,11 @@ import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
+  type SortingState,
 } from "@tanstack/react-table";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -39,11 +42,26 @@ const BreweriesTable = () => {
   const columnHelper = createColumnHelper<Brewery>();
 
   const columns = [
-    columnHelper.accessor("id", { cell: (info) => info.getValue() }),
-    columnHelper.accessor("name", { cell: (info) => info.getValue() }),
-    columnHelper.accessor("brewery_type", { cell: (info) => info.getValue() }),
-    columnHelper.accessor("city", { cell: (info) => info.getValue() }),
-    columnHelper.accessor("state", { cell: (info) => info.getValue() }),
+    columnHelper.accessor("id", {
+      cell: (info) => info.getValue(),
+      enableSorting: false,
+    }),
+    columnHelper.accessor("name", {
+      cell: (info) => info.getValue(),
+      header: "Name",
+    }),
+    columnHelper.accessor("brewery_type", {
+      cell: (info) => info.getValue(),
+      enableSorting: false,
+    }),
+    columnHelper.accessor("city", {
+      cell: (info) => info.getValue(),
+      enableSorting: false,
+    }),
+    columnHelper.accessor("state", {
+      cell: (info) => info.getValue(),
+      header: "State",
+    }),
     columnHelper.accessor("website_url", {
       cell: (info) => (
         <Link
@@ -54,6 +72,7 @@ const BreweriesTable = () => {
           {info.getValue()}
         </Link>
       ),
+      enableSorting: false,
     }),
     columnHelper.display({
       id: "actions",
@@ -67,10 +86,15 @@ const BreweriesTable = () => {
     }),
   ];
 
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   const table = useReactTable({
     columns,
     data: data ?? fallbackData,
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
   const goToPage = (newPage: number) => {
@@ -101,13 +125,42 @@ const BreweriesTable = () => {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
+                  <th
+                    key={header.id}
+                    onClick={
+                      header.column.getCanSort()
+                        ? header.column.getToggleSortingHandler()
+                        : undefined
+                    }
+                    className={
+                      header.column.getCanSort()
+                        ? "cursor-pointer select-none"
+                        : undefined
+                    }
+                  >
+                    {header.isPlaceholder ? null : (
+                      <div className="flex items-center gap-1">
+                        {flexRender(
                           header.column.columnDef.header,
                           header.getContext()
                         )}
+                        {header.column.getCanSort() && (
+                          <span
+                            className={
+                              header.column.getIsSorted()
+                                ? "text-blue-600"
+                                : "text-gray-400"
+                            }
+                          >
+                            {header.column.getIsSorted() === "asc"
+                              ? "▲"
+                              : header.column.getIsSorted() === "desc"
+                              ? "▼"
+                              : "↕"}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </th>
                 ))}
               </tr>

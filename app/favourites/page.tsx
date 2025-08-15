@@ -1,12 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   createColumnHelper,
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
   useReactTable,
+  type SortingState,
 } from "@tanstack/react-table";
 import { HeartMinus } from "lucide-react";
 
@@ -21,18 +23,23 @@ const Favourites = () => {
   const columns = [
     columnHelper.accessor("id", {
       cell: (info) => info.getValue(),
+      enableSorting: false,
     }),
     columnHelper.accessor("name", {
       cell: (info) => info.getValue(),
+      header: "Name",
     }),
     columnHelper.accessor("brewery_type", {
       cell: (info) => info.getValue(),
+      enableSorting: false,
     }),
     columnHelper.accessor("city", {
       cell: (info) => info.getValue(),
+      enableSorting: false,
     }),
     columnHelper.accessor("state", {
       cell: (info) => info.getValue(),
+      header: "State",
     }),
     columnHelper.accessor("website_url", {
       cell: (info) => (
@@ -44,6 +51,7 @@ const Favourites = () => {
           {info.getValue()}
         </Link>
       ),
+      enableSorting: false,
     }),
     columnHelper.display({
       id: "actions",
@@ -60,10 +68,15 @@ const Favourites = () => {
     }),
   ];
 
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   const table = useReactTable({
     columns: columns,
     data: favItems,
+    state: { sorting },
+    onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
   });
 
   return (
@@ -76,13 +89,26 @@ const Favourites = () => {
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id}>
+                  <th
+                    key={header.id}
+                    onClick={header.column.getCanSort() ? header.column.getToggleSortingHandler() : undefined}
+                    className={header.column.getCanSort() ? "cursor-pointer select-none" : undefined}
+                  >
                     {header.isPlaceholder
                       ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                      : (
+                        <div className="flex items-center gap-1">
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                          {header.column.getCanSort() && (
+                            <span className={header.column.getIsSorted() ? "text-blue-600" : "text-gray-400"}>
+                              {header.column.getIsSorted() === "asc" ? "▲" : header.column.getIsSorted() === "desc" ? "▼" : "↕"}
+                            </span>
+                          )}
+                        </div>
+                      )}
                   </th>
                 ))}
               </tr>
