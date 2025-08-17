@@ -1,33 +1,47 @@
 "use client";
 
+import Link from "next/link";
+import { useState } from "react";
 import {
-  createColumnHelper,
+  ColumnDef,
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
+  SortingState,
   useReactTable,
-  type SortingState,
 } from "@tanstack/react-table";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
-import { Button } from "./ui/button";
-import { Heart } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal } from "lucide-react";
+
 import { Brewery } from "@/types";
 import { useFavStore } from "@/store/useStore";
 
-const fallbackData: Brewery[] = [];
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
+import { Button } from "./ui/button";
 
 const BreweriesTable = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-
   const page = Number(searchParams.get("page")) || 1;
 
-  const { addFavItem } = useFavStore();
+  const { addFavItem, favItems, removeFavItem } = useFavStore();
 
-  const getBreweries = async (): Promise<Array<Brewery>> => {
+  const getBreweries = async (): Promise<Array<Brewery | undefined>> => {
     const response = await fetch(
       `https://api.openbrewerydb.org/v1/breweries?per_page=20&page=${page}`
     );
@@ -39,69 +53,121 @@ const BreweriesTable = () => {
     queryFn: getBreweries,
   });
 
-  const columnHelper = createColumnHelper<Brewery>();
-
-  const columns = [
-    columnHelper.accessor("id", {
-      cell: (info) => info.getValue(),
-      enableSorting: false,
-    }),
-    columnHelper.accessor("name", {
-      cell: (info) => info.getValue(),
-      header: "Name",
-    }),
-    columnHelper.accessor("brewery_type", {
-      cell: (info) => info.getValue(),
-      enableSorting: false,
-    }),
-    columnHelper.accessor("city", {
-      cell: (info) => info.getValue(),
-      enableSorting: false,
-    }),
-    columnHelper.accessor("state", {
-      cell: (info) => info.getValue(),
-      header: "State",
-    }),
-    columnHelper.accessor("website_url", {
-      cell: (info) => (
-        <Link
-          href={info.getValue() ?? ""}
-          target="_blank"
-          className="text-blue-700"
-        >
-          {info.getValue()}
-        </Link>
-      ),
-      enableSorting: false,
-    }),
-    columnHelper.display({
-      id: "actions",
-      cell: ({ row }) => (
-        <Heart
-          color="red"
-          className="cursor-pointer"
-          onClick={() => addFavItem(row.original)}
-        />
-      ),
-    }),
-  ];
-
   const [sorting, setSorting] = useState<SortingState>([]);
-
-  const table = useReactTable({
-    columns,
-    data: data ?? fallbackData,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-  });
+  const [rowSelection, setRowSelection] = useState({});
 
   const goToPage = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
     params.set("page", newPage.toString());
     router.push(`?${params.toString()}`);
   };
+
+  const columns: ColumnDef<Brewery | undefined>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            Name
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+    },
+    {
+      accessorKey: "brewery_type",
+      header: "Brewery Type",
+    },
+    {
+      accessorKey: "city",
+      header: "City",
+    },
+    {
+      accessorKey: "state",
+      header: ({ column }) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+          >
+            State
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        );
+      },
+    },
+    {
+      accessorKey: "website_url",
+      header: "Website URL",
+      cell: ({ row }) => {
+        const websiteUrl = row.getValue("website_url") + "";
+        return (
+          <Link href={websiteUrl} target="_blank" className="text-blue-500">
+            {websiteUrl}
+          </Link>
+        );
+      },
+    },
+
+    {
+      id: "actions",
+      cell: ({ row }) => {
+        const rowData = row.original;
+        const isInFav = favItems.some((item) => item.id === rowData?.id);
+
+        console.log(isInFav, "is added");
+
+        return (
+          <div className="text-right">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <span className="sr-only">Open menu</span>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isInFav ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      removeFavItem(rowData as Brewery);
+                    }}
+                  >
+                    Remove from Favourites
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      addFavItem(rowData as Brewery);
+                    }}
+                  >
+                    Add to Favourites
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const table = useReactTable({
+    data: data ?? [],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      rowSelection,
+    },
+  });
 
   if (isLoading)
     return (
@@ -118,78 +184,61 @@ const BreweriesTable = () => {
     );
 
   return (
-    <section>
-      <div>
-        <table>
-          <thead>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    onClick={
-                      header.column.getCanSort()
-                        ? header.column.getToggleSortingHandler()
-                        : undefined
-                    }
-                    className={
-                      header.column.getCanSort()
-                        ? "cursor-pointer select-none"
-                        : undefined
-                    }
-                  >
-                    {header.isPlaceholder ? null : (
-                      <div className="flex items-center gap-1">
-                        {flexRender(
+    <section className="overflow-hidden rounded-md border">
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                return (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
                           header.column.columnDef.header,
                           header.getContext()
                         )}
-                        {header.column.getCanSort() && (
-                          <span
-                            className={
-                              header.column.getIsSorted()
-                                ? "text-blue-600"
-                                : "text-gray-400"
-                            }
-                          >
-                            {header.column.getIsSorted() === "asc"
-                              ? "▲"
-                              : header.column.getIsSorted() === "desc"
-                              ? "▼"
-                              : "↕"}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id}>
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows?.length ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && "selected"}
+              >
                 {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id}>
+                  <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="flex gap-2 items-center mt-4">
-          <span>Current Page: {page}</span>
-          <Button
-            onClick={() => goToPage(Math.max(page - 1, 1))}
-            disabled={page === 1}
-          >
-            Previous Page
-          </Button>
-          <Button onClick={() => goToPage(page + 1)}>Next Page</Button>
-        </div>
+              </TableRow>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                No results.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+      <div className="flex items-center justify-end space-x-2 py-4">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => goToPage(page - 1)}
+          disabled={page === 1}
+        >
+          Previous
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => goToPage(page + 1)}>
+          Next
+        </Button>
       </div>
     </section>
   );
